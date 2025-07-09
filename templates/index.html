@@ -1,0 +1,257 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Doflow- AI Background Remover</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <style>
+    :root {
+      --bg: linear-gradient(to bottom right, #0f2027, #203a43, #2c5364);
+      --card: linear-gradient(to bottom, #2a2a2a, #1f1f1f);
+      --text: #ffffff;
+      --accent: #00c6ff;
+      --footer: #101010;
+    }
+
+    body.light {
+      --bg: linear-gradient(to right, #ffffff, #e0e0e0);
+      --card: #f4f4f4;
+      --text: #000000;
+      --accent: #0075d4;
+      --footer: #dddddd;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: 'Segoe UI', sans-serif;
+      background: var(--bg);
+      background-attachment: fixed;
+      background-size: cover;
+      color: var(--text);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      transition: background 0.3s, color 0.3s;
+    }
+
+    header {
+      background: var(--footer);
+      padding: 15px 20px;
+      font-size: 22px;
+      font-weight: bold;
+      border-bottom: 1px solid #333;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    #toggleTheme {
+      background: none;
+      border: 1px solid var(--accent);
+      padding: 6px 12px;
+      border-radius: 4px;
+      color: var(--accent);
+      cursor: pointer;
+    }
+
+    main {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 30px 15px;
+    }
+
+    .description {
+      max-width: 700px;
+      text-align: center;
+      margin-bottom: 30px;
+      font-size: 25px;
+      font-weight: bold;
+      letter-spacing: 1px;
+      color: var(--text);
+    }
+
+    .drop-area {
+      border: 2px dashed #666;
+      border-radius: 12px;
+      padding: 40px;
+      text-align: center;
+      cursor: pointer;
+      background: var(--card);
+      transition: border-color 0.3s;
+      max-width: 700px;
+      width: 100%;
+      box-shadow: 0 0 20px rgba(0,0,0,0.3);
+    }
+
+    .drop-area.dragover { border-color: var(--accent); }
+    .drop-area input { display: none; }
+
+    #loader, #progressBar {
+      margin-top: 20px;
+      font-size: 18px;
+      display: none;
+    }
+
+    #progressBar {
+      width: 100%;
+      max-width: 300px;
+      height: 10px;
+      background: #444;
+      border-radius: 6px;
+      overflow: hidden;
+      margin: 10px auto;
+    }
+
+    #progressBarInner {
+      height: 100%;
+      width: 0%;
+      background: var(--accent);
+      transition: width 0.3s ease;
+    }
+
+    #preview {
+      max-width: 500px;
+      margin-top: 20px;
+      display: none;
+      border-radius: 8px;
+      animation: wipe 1s ease-in-out;
+    }
+
+    @keyframes wipe {
+      from { clip-path: inset(0 100% 0 0); }
+      to   { clip-path: inset(0 0 0 0); }
+    }
+
+    #downloadBtn {
+      display: none;
+      margin-top: 15px;
+      padding: 12px 24px;
+      background: linear-gradient(135deg, #00c6ff 0%, #0072ff 100%);
+      border: none;
+      border-radius: 6px;
+      color: white;
+      font-weight: bold;
+      text-decoration: none;
+      font-size: 16px;
+      transition: transform 0.2s, box-shadow 0.3s;
+    }
+
+    #downloadBtn:hover {
+      transform: scale(1.05);
+      box-shadow: 0 0 10px rgba(0,198,255,0.7);
+    }
+
+    footer {
+      text-align: center;
+      padding: 20px;
+      font-size: 14px;
+      color: #777;
+      border-top: 1px solid #333;
+      background: var(--footer);
+    }
+
+    @media (max-width: 600px) {
+      .drop-area { padding: 30px 15px; }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    🎨Doflow - AI Background Remover
+    <button id="toggleTheme">Toggle Theme</button>
+  </header>
+
+  <main>
+    <div class="description">
+      Instantly Remove Image Backgrounds 
+    </div>
+
+    <div class="drop-area" id="dropArea">
+      <p>📤 Drag and drop your image here or click to <a style="color: var(--accent);" href="#"> <strong>Upload</strong> </a></p>
+      <input type="file" id="fileInput" accept="image/*">
+    </div>
+
+    <div id="loader">Processing...</div>
+    <div id="progressBar"><div id="progressBarInner"></div></div>
+
+    <img id="preview" />
+    <a id="downloadBtn" download="removed.png">Download Image</a>
+  </main>
+
+  <footer>
+    &copy; 2025 AI Remover Tool • Made with Flask & rembg
+  </footer>
+
+  <script>
+    const dropArea = document.getElementById("dropArea");
+    const fileInput = document.getElementById("fileInput");
+    const loader = document.getElementById("loader");
+    const preview = document.getElementById("preview");
+    const downloadBtn = document.getElementById("downloadBtn");
+    const progressBar = document.getElementById("progressBar");
+    const progressBarInner = document.getElementById("progressBarInner");
+
+    dropArea.addEventListener("click", () => fileInput.click());
+    dropArea.addEventListener("dragover", e => {
+      e.preventDefault();
+      dropArea.classList.add("dragover");
+    });
+    dropArea.addEventListener("dragleave", () => dropArea.classList.remove("dragover"));
+    dropArea.addEventListener("drop", e => {
+      e.preventDefault();
+      dropArea.classList.remove("dragover");
+      const files = e.dataTransfer.files;
+      if (files.length) handleImage(files[0]);
+    });
+    fileInput.addEventListener("change", () => {
+      if (fileInput.files.length) handleImage(fileInput.files[0]);
+    });
+
+    async function handleImage(file) {
+      if (!file.type.startsWith("image/")) return alert("Please upload a valid image file.");
+      if (file.size > 20 * 1024 * 1024) return alert("Max file size is 20MB.");
+
+      loader.style.display = "block";
+      progressBar.style.display = "block";
+      preview.style.display = "none";
+      downloadBtn.style.display = "none";
+      progressBarInner.style.width = "0%";
+
+      const formData = new FormData();
+      formData.append("image", file);
+
+      const xhr = new XMLHttpRequest();
+      xhr.open("POST", "/remove-bg");
+      xhr.upload.onprogress = e => {
+        if (e.lengthComputable) {
+          const percent = (e.loaded / e.total) * 100;
+          progressBarInner.style.width = percent + "%";
+        }
+      };
+      xhr.onload = () => {
+        const data = JSON.parse(xhr.responseText);
+        const imageUrl = `/result/${data.filename}`;
+        preview.src = imageUrl;
+        preview.onload = () => {
+          loader.style.display = "none";
+          progressBar.style.display = "none";
+          preview.style.display = "block";
+          downloadBtn.href = imageUrl;
+          downloadBtn.style.display = "inline-block";
+        };
+        downloadBtn.onclick = () => {
+          fetch(`/delete/${data.filename}`, { method: "POST" });
+        };
+      };
+      xhr.send(formData);
+    }
+
+    const toggleTheme = document.getElementById("toggleTheme");
+    toggleTheme.onclick = () => {
+      document.body.classList.toggle("light");
+    };
+  </script>
+</body>
+</html>
